@@ -1,0 +1,19 @@
+version: '3'
+
+services:
+  my_pytorch_container:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    runtime: nvidia  # Enable NVIDIA GPU support
+    ipc: host  
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    volumes:
+      - $HOME/data:/data  # Mount data directory
+    ports:
+      - "50031:50031/tcp"  # Expose correct ports
+    tty: true  
+    environment:
+
