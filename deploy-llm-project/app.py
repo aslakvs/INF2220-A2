@@ -336,7 +336,7 @@ def predict():
     # Concatenate the sources list to a string
     sources = '\n\n'.join([source[1] for source in sources])
     # Concatenate the sources string to the answer string and add Source: to the beginning of the sources string
-    answer = answer + '\n\nSources :\n\n' + sources
+    # answer = answer + '\n\nSources :\n\n' + sources
     # Return the answer and sources as a dict which can be read in json format in javascript
     return {'answer': answer}
 
