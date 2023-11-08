@@ -52,9 +52,7 @@ target_source_chunks = 4
 model_n_ctx = 2000
 
 # Load environment variables
-#persist_directory = os.environ.get('PERSIST_DIRECTORY')
 source_directory = r'/data/source_documents'
-#embeddings_model_name = os.environ.get('EMBEDDINGS_MODEL_NAME')
 chunk_size = 500
 chunk_overlap = 50
 
@@ -85,7 +83,6 @@ class MyElmLoader(UnstructuredEmailLoader):
 # Map file extensions to document loaders and their arguments
 LOADER_MAPPING = {
     ".csv": (CSVLoader, {}),
-    # ".docx": (Docx2txtLoader, {}),
     ".doc": (UnstructuredWordDocumentLoader, {}),
     ".docx": (UnstructuredWordDocumentLoader, {}),
     ".enex": (EverNoteLoader, {}),
@@ -147,7 +144,6 @@ def process_documents(ignored_files: List[str] = []) -> List[Document]:
         exit(0)
     print(f"Loaded {len(documents)} new documents from {source_directory}")
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-    #print(text_splitter)
     texts = text_splitter.split_documents(documents)
     print(f"Split into {len(texts)} chunks of text (max. {chunk_size} tokens each)")
     return texts
@@ -212,42 +208,15 @@ def calculate_layer_count() -> int | None:
 
 def call_model(query, model_type, hide_source):
     # Parse the command line arguments
-    #args = parse_arguments()
     embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
     
     db = Chroma(persist_directory=persist_directory, embedding_function=embeddings, client_settings=CHROMA_SETTINGS)
 
     print(f"Ingestion complete! You can now run privateGPT.py to query your documents")
-    #callbacks = [] if args.mute_stream else [StreamingStdOutCallbackHandler()]
     
     retriever = db.as_retriever(search_kwargs={"k": target_source_chunks})
-    # activate/deactivate the streaming StdOut callback for LLMs
-    #callbacks = [] if args.mute_stream else [StreamingStdOutCallbackHandler()]
-    match model_type:
-        case "LlamaCpp":
-            #llm = LlamaCpp(model_path=model_path, max_tokens=model_n_ctx, n_batch=model_n_batch, callbacks=callbacks, verbose=False)
-            llm = LlamaCpp(model_path=r'/data/models/llama-2-7b-chat.ggmlv3.q4_0.bin', n_ctx=model_n_ctx, verbose=False, n_gpu_layers=calculate_layer_count())
-        case "GPT4All":
-            #llm = GPT4All(model=model_path, max_tokens=model_n_ctx, backend='gptj', n_batch=model_n_batch, callbacks=callbacks, verbose=False)
-            llm = GPT4All(model="data/models/ggml-gpt4all-j-v1.3-groovy.bin", backend='gptj', verbose=False)
-        case "MedLlama":
-            llm = HuggingFacePipeline.from_model_id(model_id='/data/models/medllama', task="text-generation", device=1,
-                                        model_kwargs={"trust_remote_code": True, "torch_dtype": "auto", "max_length":model_n_ctx})
-        case "phi":
-            llm = HuggingFacePipeline.from_model_id(model_id='/data/models/phi-1_5',task="text-generation", 
-                                        model_kwargs={"trust_remote_code": True, "torch_dtype": "auto", "max_length":model_n_ctx})
-        case "codegeex2":
-            llm = HuggingFacePipeline.from_model_id(model_id='/data/models/codegeex2-6b', task="text-generation", device=1,
-                                        model_kwargs={"trust_remote_code": True, "torch_dtype": "auto", "max_length":model_n_ctx})
-        case "codellama":
-            llm = HuggingFacePipeline.from_model_id(model_id='/data/models/CodeLlama-7b-hf', task="text-generation", device=1,
-                                        model_kwargs={"trust_remote_code": True, "torch_dtype": "auto", "max_length":model_n_ctx})
-        case "vicuna":
-            llm = HuggingFacePipeline.from_model_id(model_id='/data/models/vicuna-7b-v1.5', task="text-generation", device=1,
-                                        model_kwargs={"trust_remote_code": True, "torch_dtype": "auto", "max_length":model_n_ctx})
-        case _default:
-            # raise exception if model_type is not supported
-            raise Exception(f"Model type {model_type} is not supported. Please choose one of the following: LlamaCpp, GPT4All")
+
+    llm = LlamaCpp(model_path=r'/data/models/llama-2-7b-chat.ggmlv3.q4_0.bin', n_ctx=model_n_ctx, verbose=False, n_gpu_layers=calculate_layer_count())
         
     qa = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever, return_source_documents= not hide_source)
     # Interactive questions and answers
@@ -259,17 +228,9 @@ def call_model(query, model_type, hide_source):
     answer, docs = res['result'], [] if hide_source else res['source_documents']
     end = time.time()
 
-    # Print the result
-    '''print("\n\n> Question:")
-    print(query)
-    print(f"\n> Answer (took {round(end - start, 2)} s.):")
-    print(answer)'''
-
     # Print the relevant sources used for the answer
     sources = []
     for document in docs:
-        #print("\n> " + document.metadata["source"] + ":")
-        #print(document.page_content)
         # Append source and page content to sources list
         sources.append(document.metadata["source"] + ":" + document.page_content)
         
@@ -283,43 +244,13 @@ CORS(app)
 
 @app.route("/")
 def hello():
-    #return "<p>Hello, World!</p>"
     return render_template('index.html')
-
-@app.route("/", methods=['POST'])
-def hello_post():
-    return "<p>Hello, World!</p>"
-    
-
-@app.route("/upload", methods=['POST'])
-def upload():
-    #Get the filename
-    filename = request.files['file'].filename
-    
-    # Upload the file to the source directory
-     
-    file = request.files['file']#.read().decode("latin-1")
-    #print(file)
-    # Save the file to the source directory
-    '''os.chdir(source_directory)
-    with open(filename, "w") as f:
-        f.write(file)'''
-    file.save('/data/source_documents/' +(file.filename))
-    ingest()
-    
-    # Return a message to the json file
-    #return {'message': 'File uploaded successfully'}
-    # return a message to be displayed on the "/" webpage and not the "/upload" webpage
-    return redirect(url_for('hello'))
-    
 
 @app.route("/predict", methods=['POST'])
 def predict():
-    #text = str(request.form['text'])
     # Get the text from the json file
     data = request.get_json()
-    text = data['prompt']
-    #text = data['input']
+    text = f"Give me a recipe using the following ingredients: {data['prompt']}"
     # Select model from drop down list of index.html
     model_type = data['model']
     print(text)
@@ -329,17 +260,16 @@ def predict():
     if not os.listdir(source_directory):
         print("Source directory is empty. Please upload a file first.")
     
-    answer, sources = call_model(text, model_type, hide_source=False)
+    answer, sources = call_model(text, model_type, hide_source=True)
     print(sources)
     # From each of the elements in the sources list, split the string at the first colon
     sources = [source.split(":", 1) for source in sources]
     # Concatenate the sources list to a string
     sources = '\n\n'.join([source[1] for source in sources])
     # Concatenate the sources string to the answer string and add Source: to the beginning of the sources string
-    # answer = answer + '\n\nSources :\n\n' + sources
-    # Return the answer and sources as a dict which can be read in json format in javascript
     return {'answer': answer}
 
 if __name__ == '__main__':
     app.config['UPLOAD_FOLDER'] = 'source_documents'
+    ingest()
     app.run(port=50031, host='0.0.0.0', debug=True)
